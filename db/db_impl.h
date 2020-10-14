@@ -25,6 +25,7 @@ class TableCache;
 class Version;
 class VersionEdit;
 class VersionSet;
+class MemBuffer;
 
 class DBImpl : public DB {
  public:
@@ -175,6 +176,8 @@ class DBImpl : public DB {
   std::atomic<bool> shutting_down_;
   port::CondVar background_work_finished_signal_ GUARDED_BY(mutex_);
   MemTable* mem_;
+  MemBuffer* mbf_;                    // mutatable MemBuffer
+  MemBuffer* imm_mbf_;                // immutable MemBuffer, some thread protection should be put here
   MemTable* imm_ GUARDED_BY(mutex_);  // Memtable being compacted
   std::atomic<bool> has_imm_;         // So bg thread can detect non-null imm_
   WritableFile* logfile_;
