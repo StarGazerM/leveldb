@@ -1,24 +1,53 @@
-//  a thread safe map
+//  MemBuffer using std's hash map
+
+// Yihao Sun
+// 2020 Syracuse
+
 #pragma once
 
-#include <map>
+#include "db/dbformat.h"
 #include <string>
+#include <unordered_map>
+
 #include "leveldb/db.h"
 
 namespace leveldb {
 class MemBuffer {
+ public:
+  explicit MemBuffer(uint64_t max_size);
 
-public:
-  MemBuffer(uint64_t max_size);
-  // find a value by key, return 1 success, 0 fail
-  int Find(const Slice& key, std::string* value);
+  // no copy
+  MemBuffer(const MemBuffer&) = delete;
+  MemBuffer& operator=(const MemBuffer&) = delete;
 
+  // Increase reference count.
+  void Ref() { ++refs_; }
 
-private:
-  int _size;
+  // Drop reference count.  Delete if no more references exist.
+  void Unref() {
+    --refs_;
+    assert(refs_ >= 0);
+    if (refs_ <= 0) {
+      delete this;
+    }
+  }
 
-  std::map<Slice, Slice> _map;
+  // basic operation but in levelDB's code flavor
 
-  Arena arena_;
+  void Find(const Slice& key, std::string* value);
+  void Add(const Slice& key, const Slice& val);
+  bool Get(const LookupKey& key, std::string* value, Status* s);
+
+  // return approximate memory usage
+  // TODO: need more precise overhead
+  size_t ApproximateMemoryUsage();
+
+ private:
+
+  size_t refs_;
+  uint64_t _size;
+  uint64_t _max_size;
+
+  std::unordered_map<std::string, std::string> _map;
 };
-}  // namespace leveld
+}  // namespace leveldb
