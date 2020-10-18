@@ -137,8 +137,11 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
       shutting_down_(false),
       background_work_finished_signal_(&mutex_),
       mem_(nullptr),
+      mbf_(nullptr),
       imm_(nullptr),
+      imm_mbf_(nullptr),
       has_imm_(false),
+      has_imm_mbf(false),
       logfile_(nullptr),
       logfile_number_(0),
       log_(nullptr),
@@ -165,6 +168,8 @@ DBImpl::~DBImpl() {
   delete versions_;
   if (mem_ != nullptr) mem_->Unref();
   if (imm_ != nullptr) imm_->Unref();
+  if (mbf_ != nullptr) imm_->Unref();
+  if (imm_mbf_ != nullptr) imm_mbf_->Unref();
   delete tmp_batch_;
   delete log_;
   delete logfile_;
@@ -541,9 +546,11 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
   return s;
 }
 
+// TODO: compaction
 void DBImpl::CompactMemTable() {
   mutex_.AssertHeld();
   assert(imm_ != nullptr);
+  assert(mbf_ != nullptr);
 
   // Save the contents of the memtable as a new Table
   VersionEdit edit;
@@ -1069,6 +1076,7 @@ static void CleanupIteratorState(void* arg1, void* arg2) {
 
 }  // anonymous namespace
 
+// TODO: iterator
 Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
                                       SequenceNumber* latest_snapshot,
                                       uint32_t* seed) {
@@ -1120,10 +1128,14 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
   }
 
   MemTable* mem = mem_;
+  MemBuffer* mbf = mbf_;
   MemTable* imm = imm_;
+  MemBuffer* imm_mbf = imm_mbf_;
   Version* current = versions_->current();
+  mbf->Ref();
   mem->Ref();
   if (imm != nullptr) imm->Ref();
+  if (imm_mbf != nullptr) imm_mbf->Ref();
   current->Ref();
 
   bool have_stat_update = false;
@@ -1134,7 +1146,11 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
     mutex_.Unlock();
     // First look in the memtable, then in the immutable memtable (if any).
     LookupKey lkey(key, snapshot);
-    if (mem->Get(lkey, value, &s)) {
+    if (mbf->Get(lkey, value, &s)) {
+      // Done
+    } else if(imm_mbf != nullptr && imm_mbf->Get(lkey, value, &s)) {
+      // Done
+    } else if (mem->Get(lkey, value, &s)) {
       // Done
     } else if (imm != nullptr && imm->Get(lkey, value, &s)) {
       // Done
@@ -1149,7 +1165,9 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
     MaybeScheduleCompaction();
   }
   mem->Unref();
+  mbf->Unref();
   if (imm != nullptr) imm->Unref();
+  if (imm_mbf != nullptr) imm_mbf->Unref();
   current->Unref();
   return s;
 }
@@ -1181,6 +1199,11 @@ const Snapshot* DBImpl::GetSnapshot() {
 void DBImpl::ReleaseSnapshot(const Snapshot* snapshot) {
   MutexLock l(&mutex_);
   snapshots_.Delete(static_cast<const SnapshotImpl*>(snapshot));
+}
+
+// check if need a drain....
+bool DBImpl::MBFNeedsDraining() {
+  return true;
 }
 
 // Convenience methods
@@ -1467,10 +1490,13 @@ Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value) {
   return Write(opt, &batch);
 }
 
+// delete is just put a tombstone as value
 Status DB::Delete(const WriteOptions& opt, const Slice& key) {
-  WriteBatch batch;
-  batch.Delete(key);
-  return Write(opt, &batch);
+  // WriteBatch batch;
+  // batch.Delete(key);
+  // return Write(opt, &batch);
+  Put(opt, key, "∎");
+  return Status();
 }
 
 DB::~DB() = default;

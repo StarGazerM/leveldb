@@ -17,6 +17,7 @@
 #include "leveldb/env.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
+#include "db/membuffer.h"
 
 namespace leveldb {
 
@@ -49,6 +50,7 @@ class DBImpl : public DB {
   bool GetProperty(const Slice& property, std::string* value) override;
   void GetApproximateSizes(const Range* range, int n, uint64_t* sizes) override;
   void CompactRange(const Slice* begin, const Slice* end) override;
+  bool MBFNeedsDraining() override;
 
   // Extra methods (for testing) that are not in the public DB interface
 
@@ -180,6 +182,8 @@ class DBImpl : public DB {
   MemBuffer* imm_mbf_;                // immutable MemBuffer, some thread protection should be put here
   MemTable* imm_ GUARDED_BY(mutex_);  // Memtable being compacted
   std::atomic<bool> has_imm_;         // So bg thread can detect non-null imm_
+  std::atomic<bool> has_imm_mbf;
+  std::atomic<bool> pauseWriter;
   WritableFile* logfile_;
   uint64_t logfile_number_ GUARDED_BY(mutex_);
   log::Writer* log_;
