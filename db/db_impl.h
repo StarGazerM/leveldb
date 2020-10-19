@@ -41,6 +41,8 @@ class DBImpl : public DB {
   Status Put(const WriteOptions&, const Slice& key,
              const Slice& value) override;
   Status Delete(const WriteOptions&, const Slice& key) override;
+  bool WriteBuffer(const WriteOptions&, const Slice& key,
+                     const Slice& value);
   Status Write(const WriteOptions& options, WriteBatch* updates) override;
   Status Get(const ReadOptions& options, const Slice& key,
              std::string* value) override;
@@ -50,7 +52,7 @@ class DBImpl : public DB {
   bool GetProperty(const Slice& property, std::string* value) override;
   void GetApproximateSizes(const Range* range, int n, uint64_t* sizes) override;
   void CompactRange(const Slice* begin, const Slice* end) override;
-  bool MBFNeedsDraining() override;
+  bool MBFNeedsDraining();
 
   // Extra methods (for testing) that are not in the public DB interface
 

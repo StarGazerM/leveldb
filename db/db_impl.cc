@@ -1215,11 +1215,37 @@ Status DBImpl::Delete(const WriteOptions& options, const Slice& key) {
   return DB::Delete(options, key);
 }
 
+// wriet into membuffer
+// ... not quite sure how to use Status here
+bool DBImpl::WriteBuffer(const WriteOptions&, const Slice& key, const Slice& value) {
+  size_t sizeAfterAdd = mbf_->ApproximateMemoryUsage() + key.size() + value.size();
+  if (sizeAfterAdd > options_.mem_cache_size) {
+    return false;
+  }
+  mbf_->Add(key, value);
+  return true;
+}
+
+
+// write into memtable
 Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
+  size_t sizeAfter = mbf_->ApproximateMemoryUsage() + updates->ApproximateSize();
+  if (sizeAfter < options_.mem_cache_size) {
+    return WriteBatchInternal::InsetIntoBuffer(updates, mbf_);
+  }
+  
   Writer w(&mutex_);
   w.batch = updates;
   w.sync = options.sync;
   w.done = false;
+
+  while (pauseWriter) {
+    if (MBFNeedsDraining()) {
+      imm_mbf_->Drain(mem_);
+    } else {
+      w.cv.Wait(); 
+    }
+  }
 
   MutexLock l(&mutex_);
   writers_.push_back(&w);

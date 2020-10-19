@@ -17,6 +17,7 @@
 
 #include "db/dbformat.h"
 #include "db/memtable.h"
+#include "db/membuffer.h"
 #include "db/write_batch_internal.h"
 #include "leveldb/db.h"
 #include "util/coding.h"
@@ -127,7 +128,26 @@ class MemTableInserter : public WriteBatch::Handler {
     sequence_++;
   }
 };
+
+class MemBufferInserter : public WriteBatch::Handler {
+  public:
+  MemBuffer* mbf_;
+
+  void Put(const Slice& key, const Slice& value) override {
+    mbf_->Add(key, value);
+  }
+
+  void Delete(const Slice& key) override {
+    mbf_->Remove(key);
+  }
+};
 }  // namespace
+
+Status WriteBatchInternal::InsetIntoBuffer(const WriteBatch* batch, MemBuffer* membuffer){
+  MemBufferInserter inserter;
+  inserter.mbf_ = membuffer;
+  return batch->Iterate(&inserter);
+}
 
 Status WriteBatchInternal::InsertInto(const WriteBatch* b, MemTable* memtable) {
   MemTableInserter inserter;

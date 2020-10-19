@@ -6,6 +6,7 @@
 #pragma once
 
 #include "db/dbformat.h"
+#include "db/memtable.h"
 #include <string>
 #include <unordered_map>
 
@@ -37,6 +38,12 @@ class MemBuffer {
   void Find(const Slice& key, std::string* value);
   void Add(const Slice& key, const Slice& val);
   bool Get(const LookupKey& key, std::string* value, Status* s);
+
+  // plain remove
+  void Remove(const Slice& key);
+
+  // drain from immutable membuf into  MemTable
+  void Drain(MemTable* memtable);
 
   // return approximate memory usage
   // TODO: need more precise overhead

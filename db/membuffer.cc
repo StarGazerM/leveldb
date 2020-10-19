@@ -41,4 +41,12 @@ bool MemBuffer::Get(const LookupKey& key, std::string* value, Status* s) {
   }
 }
 
+void MemBuffer::Remove(const Slice& key) {
+  _map.erase(key.ToString());
+}
+
+void MemBuffer::Drain(MemTable* memtable) {
+  
+}
+
 }  // namespace leveldb
