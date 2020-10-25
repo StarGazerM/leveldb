@@ -38,19 +38,14 @@ class MemBuffer {
   void Find(const Slice& key, std::string* value);
   void Add(const Slice& key, const Slice& val);
   bool Get(const LookupKey& key, std::string* value, Status* s);
-
-  // plain remove
   void Remove(const Slice& key);
-
   // drain from immutable membuf into  MemTable
   void Drain(MemTable* memtable);
-
   // return approximate memory usage
   // TODO: need more precise overhead
   size_t ApproximateMemoryUsage();
 
  private:
-
   size_t refs_;
   uint64_t _size;
   uint64_t _max_size;

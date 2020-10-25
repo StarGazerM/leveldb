@@ -3,7 +3,9 @@
 // Yihao Sun
 // 2020 Syracuse
 
-#include "membuffer.h"
+#include <vector>
+#include "db/membuffer.h"
+#include "db/write_batch_internal.h"
 
 #include "util/coding.h"
 
@@ -45,8 +47,28 @@ void MemBuffer::Remove(const Slice& key) {
   _map.erase(key.ToString());
 }
 
+// every time drain is 10 keys
 void MemBuffer::Drain(MemTable* memtable) {
-  
+  size_t keyCount = 10;
+  std::vector<std::string> drainedKey;
+  auto it = _map.begin(); 
+  for (size_t i=0; i < 10; i++) {
+    if (it == _map.end()) {
+      break;
+    }
+    drainedKey.push_back(it->first);
+    it++;
+  }
+  // move to memtable
+  WriteBatch batch;
+  for (auto k : drainedKey) {
+    batch.Put(k, _map[k]);
+  }
+
+  WriteBatchInternal::InsertInto(&batch, memtable);
+  for (auto k : drainedKey) {
+    _map.erase(k);
+  }
 }
 
 }  // namespace leveldb

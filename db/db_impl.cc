@@ -5,6 +5,8 @@
 #include "db/db_impl.h"
 
 #include <algorithm>
+#include <thread>
+#include <chrono>
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
@@ -680,6 +682,15 @@ void DBImpl::MaybeScheduleCompaction() {
 
 void DBImpl::BGWork(void* db) {
   reinterpret_cast<DBImpl*>(db)->BackgroundCall();
+}
+
+void DBImpl::BGWorkDrain(void* db) {
+  reinterpret_cast<DBImpl*>(db)->BackgroundDrain();
+}
+
+void DBImpl::BackgroundDrain() {
+  this->mbf_->Drain(this->mem_);
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
 void DBImpl::BackgroundCall() {
@@ -1548,9 +1559,14 @@ Status DB::Open(const Options& options, const std::string& dbname, DB** dbptr) {
       impl->logfile_number_ = new_log_number;
       impl->log_ = new log::Writer(lfile);
       impl->mem_ = new MemTable(impl->internal_comparator_);
+      impl->mbf_ = new MemBuffer(options.mem_cache_size);
+      impl->mbf_->Ref();
       impl->mem_->Ref();
     }
   }
+  
+  impl->env_->Schedule(&DBImpl::BGWorkDrain, impl);
+
   if (s.ok() && save_manifest) {
     edit.SetPrevLogNumber(0);  // No older logs needed after recovery.
     edit.SetLogNumber(impl->logfile_number_);
